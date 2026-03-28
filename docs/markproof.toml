@@ -1,0 +1,5 @@
+# Docs-specific config.
+# Doc pages are not managed README files, so there are no required sections.
+# markproof check will still validate every Python code block in each page.
+[sections]
+managed = []

@@ -58,3 +58,14 @@ jobs:
 
       - name: Docs — self-check README
         run: uv run markproof check README.md --root .
+
+      # ── Docs library check ────────────────────────────────────────────────
+      #
+      # Validate every page in docs/ with its own markproof.toml.
+      # No sections are managed there, so only Python code blocks are checked.
+      #
+      - name: Docs — check docs library
+        run: |
+          for doc in docs/*.md; do
+            uv run markproof check "$doc" --root docs/
+          done
