@@ -27,6 +27,7 @@ Write once, verify continuously — documentation that lies is worse than no doc
 - [Commands](#commands)
 - [Metadata Annotations](#metadata-annotations)
 - [Configuration](#configuration)
+- [GitHub Action](#github-action)
 - [How It Works](#how-it-works)
 - [Examples](#examples)
 - [Architecture](#architecture)
@@ -228,6 +229,30 @@ their own `markproof.toml` to suppress section checks:
 [sections]
 managed = []
 ```
+
+---
+
+## GitHub Action
+
+Use MarkProof in any CI pipeline without any Python setup:
+
+```yaml
+- uses: actions/checkout@v4
+
+- uses: Kazaz-Or/MarkProof@v1
+  with:
+    path: README.md
+    root: .
+```
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `path` | `README.md` | Markdown file to validate |
+| `root` | `.` | Project root for config lookup |
+| `generate` | `true` | Regenerate managed sections before checking |
+| `version` | latest | MarkProof version to install from PyPI |
+
+See [docs/github-action.md](docs/github-action.md) for the full reference, advanced examples, and a matrix strategy for validating multiple files.
 
 ---
 
