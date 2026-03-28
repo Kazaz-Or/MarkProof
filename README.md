@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/markproof.png" alt="MarkProof" width="180" />
+
 # MarkProof
 
 **Validate that your documentation actually works.**
