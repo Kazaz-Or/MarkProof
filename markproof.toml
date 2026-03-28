@@ -1,0 +1,5 @@
+[readme]
+path = "README.md"
+
+[sections]
+managed = ["installation", "architecture", "tech_stack"]

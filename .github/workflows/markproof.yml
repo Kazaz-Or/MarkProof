@@ -1,0 +1,60 @@
+name: MarkProof CI
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  quality:
+    name: Quality Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Toolchain ───────────────────────────────────────────────────────────
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true          # caches ~/.cache/uv keyed on uv.lock hash
+          cache-dependency-glob: "uv.lock"
+
+      # ── Dependencies ─────────────────────────────────────────────────────────
+      - name: Install project + dev dependencies
+        run: uv sync --dev
+
+      # ── Lint ─────────────────────────────────────────────────────────────────
+      - name: Lint — ruff check
+        run: uv run ruff check .
+
+      - name: Lint — ruff format (check only)
+        run: uv run ruff format --check .
+
+      # ── Tests ─────────────────────────────────────────────────────────────────
+      - name: Test suite — pytest
+        run: uv run pytest
+
+      # ── Documentation self-check ──────────────────────────────────────────────
+      #
+      # 1. Re-generate the README so it reflects the current source tree.
+      #    Fails if the generator itself is broken.
+      #
+      # 2. Run `markproof check` against the freshly generated README.
+      #    Fails if any managed section is missing or a Python code block
+      #    raises an exception — enforcing documentation accuracy as a
+      #    build requirement.
+      #
+      - name: Docs — regenerate README
+        run: uv run markproof generate .
+
+      - name: Docs — self-check README
+        run: uv run markproof check README.md --root .
