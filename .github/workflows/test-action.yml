@@ -1,0 +1,41 @@
+name: Test Action
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  test-action:
+    name: Test GitHub Action
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check only (no generate)
+        uses: ./
+        with:
+          dev: 'true'
+          generate: 'false'
+          path: README.md
+          root: .
+
+      - name: Generate then check
+        uses: ./
+        with:
+          dev: 'true'
+          generate: 'true'
+          path: README.md
+          root: .
+
+      - name: Check a docs library file
+        uses: ./
+        with:
+          dev: 'true'
+          generate: 'false'
+          path: docs/architecture.md
+          root: docs/

@@ -1,53 +1,70 @@
-name: 'MarkProof'
-description: 'Validate that documentation code blocks actually run — fail CI when your README lies.'
-author: 'Kazaz-Or'
+name: MarkProof
+description: Validate that documentation code blocks actually run — fail CI when your README lies.
+author: Kazaz-Or
 
 branding:
-  icon: 'check-circle'
-  color: 'green'
+  icon: check-circle
+  color: green
 
 inputs:
   path:
-    description: 'Path to the Markdown file to validate (relative to the repo root).'
+    description: Path to the Markdown file to validate (relative to the repo root).
     required: false
-    default: 'README.md'
+    default: README.md
   root:
-    description: 'Project root directory used for config lookup (markproof.toml).'
+    description: Project root directory used for config lookup (markproof.toml).
     required: false
-    default: '.'
+    default: .
   generate:
     description: >
-      Regenerate managed sections (architecture, tech_stack, installation) before
-      checking. Set to "false" to skip regeneration and only validate the existing
-      file.
+      Regenerate managed sections before checking.
+      Set to "false" to skip regeneration and only validate the existing file.
     required: false
     default: 'true'
   version:
     description: >
-      MarkProof version to install (e.g. "1.2.3"). Defaults to the latest release.
+      MarkProof version to install from PyPI (e.g. "1.2.3").
+      Defaults to the latest release.
     required: false
     default: ''
+  dev:
+    description: >
+      Install MarkProof from the action source tree instead of PyPI.
+      Used for testing the action before the package is published.
+      Set to "true" only in the MarkProof repo's own CI.
+    required: false
+    default: 'false'
 
 runs:
-  using: 'composite'
+  using: composite
   steps:
     - name: Set up uv
       uses: astral-sh/setup-uv@v5
 
-    - name: Install MarkProof
+    - name: Install MarkProof (from source)
+      if: inputs.dev == 'true'
       shell: bash
-      run: |
-        if [ -n "${{ inputs.version }}" ]; then
-          uv tool install "markproof==${{ inputs.version }}"
-        else
-          uv tool install markproof
-        fi
+      run: pip install "${{ github.action_path }}" -q
 
     - name: Regenerate managed sections
       if: inputs.generate == 'true'
       shell: bash
-      run: uvx markproof generate "${{ inputs.root }}"
+      run: |
+        if [ "${{ inputs.dev }}" = "true" ]; then
+          markproof generate "${{ inputs.root }}"
+        elif [ -n "${{ inputs.version }}" ]; then
+          uvx "markproof==${{ inputs.version }}" generate "${{ inputs.root }}"
+        else
+          uvx markproof generate "${{ inputs.root }}"
+        fi
 
     - name: Validate documentation
       shell: bash
-      run: uvx markproof check "${{ inputs.path }}" --root "${{ inputs.root }}"
+      run: |
+        if [ "${{ inputs.dev }}" = "true" ]; then
+          markproof check "${{ inputs.path }}" --root "${{ inputs.root }}"
+        elif [ -n "${{ inputs.version }}" ]; then
+          uvx "markproof==${{ inputs.version }}" check "${{ inputs.path }}" --root "${{ inputs.root }}"
+        else
+          uvx markproof check "${{ inputs.path }}" --root "${{ inputs.root }}"
+        fi
