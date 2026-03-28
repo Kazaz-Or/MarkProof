@@ -1,5 +1,8 @@
-"""Pydantic models for MarkProof parse results."""
+"""Pydantic models and result dataclasses for MarkProof."""
 
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
@@ -28,3 +31,34 @@ class ParseResult(BaseModel):
 
     path: Path
     blocks: list[CodeBlock]
+
+
+@dataclass
+class BlockResult:
+    """Outcome of executing a single code block."""
+
+    block: CodeBlock
+    stdout: str = ""
+    stderr: str = ""
+    error: str | None = None  # "<ExcType>: <message>" if an exception was raised
+    skipped: bool = False
+
+    @property
+    def passed(self) -> bool:
+        return not self.skipped and self.error is None
+
+
+@dataclass
+class ExecutionResult:
+    """Aggregated results from executing all blocks in a ParseResult."""
+
+    path: Path
+    results: list[BlockResult] = field(default_factory=list)
+
+    @property
+    def passed(self) -> bool:
+        return all(r.passed or r.skipped for r in self.results)
+
+    @property
+    def errors(self) -> list[BlockResult]:
+        return [r for r in self.results if r.error is not None]
