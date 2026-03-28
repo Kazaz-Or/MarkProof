@@ -1,19 +1,14 @@
-"""Functional tests driven by fixture Markdown files.
+"""Functional tests for MarkProof — CLI-level integration.
 
-Each fixture in ``tests/fixtures/passing/`` must produce an
-``ExecutionResult`` where every non-skipped block passes.
+Each fixture in ``tests/functional/fixtures/passing/`` must cause
+``markproof check`` to exit **0** (all blocks pass, no missing sections).
 
-Each fixture in ``tests/fixtures/failing/`` must produce an
-``ExecutionResult`` where ``exec_result.passed`` is ``False``.
+Each fixture in ``tests/functional/fixtures/failing/`` must cause
+``markproof check`` to exit **1** (at least one block raised an exception).
 
-Per-block behaviour is asserted via metadata annotations:
-
-* ``<!-- markproof:expect_stdout=value -->``
-  The block's captured stdout (stripped) must equal *value*.
-
-* ``<!-- markproof:expect_error=ExcType -->``
-  The block's ``error`` field must start with *ExcType* (e.g.
-  ``"NameError: name 'x' is not defined"`` starts with ``"NameError"``).
+Tests invoke the Typer CLI via ``CliRunner`` — the same path a user or CI
+script takes — rather than calling internal Python APIs.  This exercises the
+full pipeline: config loading → parse → execute → check result → exit code.
 """
 
 from __future__ import annotations
@@ -21,16 +16,17 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
-# Import at module level to avoid pyfakefs / Pydantic schema issues.
-from markproof.executor import SnippetExecutor
-from markproof.parser import parse_file
+from markproof.cli import app
 
-# ---------------------------------------------------------------------------
-# Fixture discovery
-# ---------------------------------------------------------------------------
+runner = CliRunner()
 
 _FIXTURES = Path(__file__).parent / "fixtures"
+
+# Docs-style config: no managed sections so check never fails on missing
+# markers — only code-block execution errors matter for these fixtures.
+_DOCS_CONFIG = "[sections]\nmanaged = []\n"
 
 
 def _collect(subdir: str) -> list[Path]:
@@ -38,74 +34,32 @@ def _collect(subdir: str) -> list[Path]:
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Passing fixtures — markproof check must exit 0
 # ---------------------------------------------------------------------------
 
 
-def _check_block_annotations(
-    results: list,  # list[BlockResult]
-    *,
-    expect_all_pass: bool,
-) -> None:
-    """Assert per-block metadata annotations and optional global pass check."""
-    for br in results:
-        if br.skipped:
-            continue
-
-        expect_error: str | None = br.block.metadata.get("expect_error")
-        expect_stdout: str | None = br.block.metadata.get("expect_stdout")
-
-        if expect_error is not None:
-            assert br.error is not None, (
-                f"Line {br.block.line_number}: expected {expect_error!r} "
-                f"but block succeeded"
-            )
-            assert br.error.startswith(expect_error), (
-                f"Line {br.block.line_number}: expected error starting with "
-                f"{expect_error!r}, got {br.error!r}"
-            )
-        elif expect_all_pass:
-            assert br.error is None, (
-                f"Line {br.block.line_number}: unexpected error: {br.error}"
-            )
-
-        if expect_stdout is not None:
-            assert br.stdout.strip() == expect_stdout.strip(), (
-                f"Line {br.block.line_number}: expected stdout {expect_stdout!r}, "
-                f"got {br.stdout.strip()!r}"
-            )
-
-
-# ---------------------------------------------------------------------------
-# Passing fixtures — every non-skipped block must succeed
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("path", _collect("passing"), ids=lambda p: p.name)
-def test_passing_fixture(path: Path) -> None:
-    parse_result = parse_file(path)
-    exec_result = SnippetExecutor().execute(parse_result)
-
-    _check_block_annotations(exec_result.results, expect_all_pass=True)
-    assert exec_result.passed, (
-        f"{path.name} — unexpected failures: {exec_result.errors}"
+@pytest.mark.parametrize("fixture_path", _collect("passing"), ids=lambda p: p.name)
+def test_passing_fixture(fixture_path: Path, tmp_path: Path) -> None:
+    """CLI exits 0: every Python block in the fixture runs without error."""
+    (tmp_path / "markproof.toml").write_text(_DOCS_CONFIG)
+    result = runner.invoke(app, ["check", str(fixture_path), "--root", str(tmp_path)])
+    assert result.exit_code == 0, (
+        f"{fixture_path.name} — expected exit 0, got {result.exit_code}\n\n"
+        f"CLI output:\n{result.output}"
     )
 
 
 # ---------------------------------------------------------------------------
-# Failing fixtures — at least one non-skipped block must raise an error
+# Failing fixtures — markproof check must exit 1
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("path", _collect("failing"), ids=lambda p: p.name)
-def test_failing_fixture(path: Path) -> None:
-    parse_result = parse_file(path)
-    exec_result = SnippetExecutor().execute(parse_result)
-
-    # Validate any per-block annotations (expect_error / expect_stdout).
-    _check_block_annotations(exec_result.results, expect_all_pass=False)
-
-    # The overall result must be a failure.
-    assert not exec_result.passed, (
-        f"{path.name} — expected at least one block to fail, but all passed"
+@pytest.mark.parametrize("fixture_path", _collect("failing"), ids=lambda p: p.name)
+def test_failing_fixture(fixture_path: Path, tmp_path: Path) -> None:
+    """CLI exits 1: at least one Python block in the fixture raises an exception."""
+    (tmp_path / "markproof.toml").write_text(_DOCS_CONFIG)
+    result = runner.invoke(app, ["check", str(fixture_path), "--root", str(tmp_path)])
+    assert result.exit_code == 1, (
+        f"{fixture_path.name} — expected exit 1, got {result.exit_code}\n\n"
+        f"CLI output:\n{result.output}"
     )

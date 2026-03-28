@@ -1,0 +1,180 @@
+name: Release
+
+# Triggered when a version tag is pushed: v1.0.0, v2.3.1, etc.
+# The tag IS the version — hatch-vcs reads it at build time.
+# No manual version edits in pyproject.toml are needed.
+#
+# How to release:
+#   git tag v1.2.3
+#   git push origin v1.2.3
+#
+# Pipeline:
+#   quality  →  build  →  publish-pypi
+#                      └→  github-release   (parallel with publish-pypi)
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+jobs:
+
+  # ── 1. Full quality suite ────────────────────────────────────────────────
+  #
+  # Identical to the CI workflow.  A release must pass every check that a
+  # regular commit passes — plus the docs self-check.
+  #
+  quality:
+    name: Quality Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history so hatch-vcs can resolve the tag
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install project + dev dependencies
+        run: uv sync --dev
+
+      - name: Lint — ruff check
+        run: uv run ruff check .
+
+      - name: Lint — ruff format (check only)
+        run: uv run ruff format --check .
+
+      - name: Test — unit suite
+        run: uv run pytest tests/unit/
+
+      - name: Test — functional suite
+        run: uv run pytest tests/functional/ -v
+
+      - name: Docs — regenerate README
+        run: uv run markproof generate .
+
+      - name: Docs — self-check README
+        run: uv run markproof check README.md --root .
+
+      - name: Docs — check docs library
+        run: |
+          for doc in docs/*.md; do
+            uv run markproof check "$doc" --root docs/
+          done
+
+  # ── 2. Build distribution artifacts ─────────────────────────────────────
+  #
+  # hatch-vcs reads the pushed tag (e.g. v1.2.3) and bakes "1.2.3" into
+  # the wheel metadata and src/markproof/_version.py.
+  #
+  build:
+    name: Build distribution
+    needs: quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # required for hatch-vcs tag resolution
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: Verify tag matches built package version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"          # strip leading "v"
+          PKG=$(uv run python -c "import markproof; print(markproof.__version__)")
+          echo "Tag version : $TAG"
+          echo "Package version: $PKG"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "ERROR: tag $TAG does not match package version $PKG"
+            exit 1
+          fi
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  # ── 3a. Publish to PyPI ──────────────────────────────────────────────────
+  #
+  # Uses OIDC Trusted Publishing — no API tokens or secrets required.
+  #
+  # One-time PyPI setup (per project):
+  #   1. Go to https://pypi.org/manage/account/publishing/
+  #   2. Add a new trusted publisher:
+  #        PyPI project name : markproof
+  #        GitHub owner      : <your-github-username>
+  #        Repository        : markproof
+  #        Workflow filename : release.yml
+  #        Environment       : pypi
+  #   3. Create the "pypi" environment in GitHub repo settings.
+  #
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/markproof
+    permissions:
+      id-token: write             # required for OIDC trusted publishing
+
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  # ── 3b. Create GitHub Release ────────────────────────────────────────────
+  #
+  # Runs in parallel with publish-pypi.
+  # Attaches the wheel and sdist to the release and auto-generates notes
+  # from the merged pull requests since the previous tag.
+  #
+  github-release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write             # required to create a release
+
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
