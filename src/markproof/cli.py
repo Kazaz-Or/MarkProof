@@ -14,11 +14,6 @@ _console = Console()
 _err = Console(stderr=True)
 
 
-# ---------------------------------------------------------------------------
-# generate
-# ---------------------------------------------------------------------------
-
-
 @app.command()
 def generate(
     root: Path = typer.Argument(Path("."), help="Project root directory."),
@@ -29,7 +24,6 @@ def generate(
     """Generate or update the project README with managed sections."""
     from .generator import ReadmeGenerator
 
-    # Coerce to Path: Typer may pass a bare string when invoked programmatically.
     root = Path(root)
     generator = ReadmeGenerator(root=root)
     readme_path = generator.generate(output=output)
@@ -38,11 +32,6 @@ def generate(
         f"[green]✓[/green] Generated [bold]{readme_path}[/bold]"
         f" ({n} managed section{'s' if n != 1 else ''})"
     )
-
-
-# ---------------------------------------------------------------------------
-# check
-# ---------------------------------------------------------------------------
 
 
 @app.command()
@@ -61,7 +50,6 @@ def check(
     config = load_config(root)
     result = check_readme(path, config)
 
-    # ── Managed sections ────────────────────────────────────────────────────
     section_table = Table(title="Managed Sections", show_header=True)
     section_table.add_column("Section")
     section_table.add_column("Status")
@@ -73,7 +61,6 @@ def check(
         )
     _console.print(section_table)
 
-    # ── Code-block errors ────────────────────────────────────────────────────
     if result.block_errors:
         _console.print("\n[red]Code block errors:[/red]")
         for err in result.block_errors:
@@ -81,7 +68,6 @@ def check(
     else:
         _console.print("\n[green]✓[/green] All code blocks passed.")
 
-    # ── Exit code ────────────────────────────────────────────────────────────
     if result.passed:
         _console.print("\n[bold green]All checks passed.[/bold green]")
     else:

@@ -13,10 +13,6 @@ from markproof.parser import (
     parse_text,
 )
 
-# ---------------------------------------------------------------------------
-# _parse_comment_metadata
-# ---------------------------------------------------------------------------
-
 
 class TestParseCommentMetadata:
     def test_single_key_value(self) -> None:
@@ -37,11 +33,6 @@ class TestParseCommentMetadata:
         assert result == {"key": "val"}
 
 
-# ---------------------------------------------------------------------------
-# _classify
-# ---------------------------------------------------------------------------
-
-
 class TestClassify:
     @pytest.mark.parametrize(
         "source",
@@ -53,7 +44,7 @@ class TestClassify:
             "conda install numpy",
             "poetry add fastapi",
             "pipenv install httpx",
-            "  pip install requests  ",  # leading whitespace
+            "  pip install requests  ",
         ],
     )
     def test_install_patterns(self, source: str) -> None:
@@ -71,13 +62,7 @@ class TestClassify:
         assert _classify(source) == CodeBlockKind.INSTALL
 
     def test_usage_similar_but_not_install(self) -> None:
-        # "reinstall" should NOT match
         assert _classify("# reinstall everything") == CodeBlockKind.USAGE
-
-
-# ---------------------------------------------------------------------------
-# _closing_fence_re
-# ---------------------------------------------------------------------------
 
 
 class TestClosingFenceRe:
@@ -101,11 +86,6 @@ class TestClosingFenceRe:
     def test_no_match_with_language(self) -> None:
         pat = _closing_fence_re("```")
         assert not pat.match("```python")
-
-
-# ---------------------------------------------------------------------------
-# parse_text — basic block extraction
-# ---------------------------------------------------------------------------
 
 
 class TestParseTextBasic:
@@ -184,11 +164,6 @@ class TestParseTextBasic:
         assert result.blocks[0].source == "a = 1\nb = 2\nc = 3"
 
 
-# ---------------------------------------------------------------------------
-# parse_text — metadata from HTML comments
-# ---------------------------------------------------------------------------
-
-
 class TestParseTextMetadata:
     def test_single_flag_before_block(self) -> None:
         md = "<!-- markproof:skip -->\n```python\npass\n```"
@@ -242,11 +217,6 @@ class TestParseTextMetadata:
         assert result.blocks[0].metadata == {}
 
 
-# ---------------------------------------------------------------------------
-# parse_text — installation classification
-# ---------------------------------------------------------------------------
-
-
 class TestParseTextClassification:
     def test_bash_pip_install(self) -> None:
         md = "```bash\npip install requests\n```"
@@ -272,11 +242,6 @@ class TestParseTextClassification:
         md = "```shell\nconda install numpy\n```"
         result = parse_text(md, Path("c.md"))
         assert result.blocks[0].kind == CodeBlockKind.INSTALL
-
-
-# ---------------------------------------------------------------------------
-# parse_file — uses pyfakefs
-# ---------------------------------------------------------------------------
 
 
 class TestParseFile:
@@ -317,11 +282,6 @@ class TestParseFile:
         assert len(result.blocks) == 2
         assert result.blocks[0].kind == CodeBlockKind.INSTALL
         assert result.blocks[1].kind == CodeBlockKind.USAGE
-
-
-# ---------------------------------------------------------------------------
-# ParseResult and CodeBlock model contracts
-# ---------------------------------------------------------------------------
 
 
 class TestModels:

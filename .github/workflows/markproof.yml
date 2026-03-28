@@ -7,66 +7,106 @@ on:
     branches: ["main", "master"]
 
 jobs:
-  quality:
-    name: Quality Suite
+
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
 
     steps:
-      # ── Checkout ────────────────────────────────────────────────────────────
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0          # full history so hatch-vcs can resolve the version
+          fetch-depth: 0
 
-      # ── Toolchain ───────────────────────────────────────────────────────────
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install dev dependencies
+        run: uv sync --dev
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: ruff format (check only)
+        run: uv run ruff format --check .
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v5
         with:
-          enable-cache: true          # caches ~/.cache/uv keyed on uv.lock hash
+          enable-cache: true
           cache-dependency-glob: "uv.lock"
 
-      # ── Dependencies ─────────────────────────────────────────────────────────
       - name: Install project + dev dependencies
         run: uv sync --dev
 
-      # ── Lint ─────────────────────────────────────────────────────────────────
-      - name: Lint — ruff check
-        run: uv run ruff check .
+      - name: Run unit tests
+        run: uv run pytest tests/unit/ -v
 
-      - name: Lint — ruff format (check only)
-        run: uv run ruff format --check .
+  functional-tests:
+    name: Functional Tests
+    runs-on: ubuntu-latest
 
-      # ── Tests ─────────────────────────────────────────────────────────────────
-      - name: Test suite — pytest
-        run: uv run pytest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # ── Documentation self-check ──────────────────────────────────────────────
-      #
-      # 1. Re-generate the README so it reflects the current source tree.
-      #    Fails if the generator itself is broken.
-      #
-      # 2. Run `markproof check` against the freshly generated README.
-      #    Fails if any managed section is missing or a Python code block
-      #    raises an exception — enforcing documentation accuracy as a
-      #    build requirement.
-      #
-      - name: Docs — regenerate README
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install project + dev dependencies
+        run: uv sync --dev
+
+      - name: Run functional tests
+        run: uv run pytest tests/functional/ -v
+
+  docs-check:
+    name: Docs Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install project dependencies
+        run: uv sync
+
+      - name: Regenerate README
         run: uv run markproof generate .
 
-      - name: Docs — self-check README
+      - name: Validate README
         run: uv run markproof check README.md --root .
 
-      # ── Docs library check ────────────────────────────────────────────────
-      #
-      # Validate every page in docs/ with its own markproof.toml.
-      # No sections are managed there, so only Python code blocks are checked.
-      #
-      - name: Docs — check docs library
+      - name: Validate docs library
         run: |
           for doc in docs/*.md; do
             uv run markproof check "$doc" --root docs/

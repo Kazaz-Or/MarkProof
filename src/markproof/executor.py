@@ -29,24 +29,12 @@ from .models import (
     ParseResult,
 )
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-# Language tags that we treat as Python source.
 _PYTHON_LANGS: frozenset[str] = frozenset({"python", "python3", "py"})
 
-# Matches any use of await at expression level, or async-for / async-with
-# at statement level.  Used as a fast pre-filter before attempting compile().
 _ASYNC_USAGE_RE = re.compile(
     r"\bawait\b|\basync\s+(?:for|with)\b",
     re.MULTILINE,
 )
-
-
-# ---------------------------------------------------------------------------
-# Async detection helpers
-# ---------------------------------------------------------------------------
 
 
 def _is_async_source(source: str) -> bool:
@@ -67,9 +55,9 @@ def _is_async_source(source: str) -> bool:
         return False
     try:
         compile(source, "<string>", "exec")
-        return False  # compiled fine: async constructs are nested inside functions
+        return False
     except SyntaxError:
-        return True  # top-level async construct found
+        return True
 
 
 def _make_async_wrapper(source: str) -> str:
@@ -91,11 +79,6 @@ def _make_async_wrapper(source: str) -> str:
         "import asyncio as _markproof_asyncio\n"
         "_markproof_locals = _markproof_asyncio.run(_markproof_async_block())\n"
     )
-
-
-# ---------------------------------------------------------------------------
-# Core execution helper
-# ---------------------------------------------------------------------------
 
 
 def _execute_source(
@@ -131,13 +114,10 @@ def _execute_source(
             exec(code, namespace)  # noqa: S102
 
         if is_async:
-            # Pull local variables from the coroutine back into the shared
-            # namespace so future blocks can see them.
             async_locals: dict = namespace.pop("_markproof_locals", None) or {}  # type: ignore[type-arg]
             namespace.update(
                 {k: v for k, v in async_locals.items() if not k.startswith("_")}
             )
-            # Clean up wrapper artefacts.
             namespace.pop("_markproof_async_block", None)
             namespace.pop("_markproof_asyncio", None)
 
@@ -145,11 +125,6 @@ def _execute_source(
         error = f"{type(exc).__name__}: {exc}"
 
     return stdout_buf.getvalue(), stderr_buf.getvalue(), error
-
-
-# ---------------------------------------------------------------------------
-# Public executor
-# ---------------------------------------------------------------------------
 
 
 class SnippetExecutor:
@@ -173,25 +148,18 @@ class SnippetExecutor:
             result.results.append(self._run_block(block, namespace))
         return result
 
-    # ------------------------------------------------------------------
-    # Internal
-    # ------------------------------------------------------------------
-
     def _run_block(
         self,
         block: CodeBlock,
         namespace: dict,  # type: ignore[type-arg]
     ) -> BlockResult:
         """Decide whether to skip or execute a single block."""
-        # Skip non-Python code (bash, shell, unlabelled, …).
         if block.language not in _PYTHON_LANGS:
             return BlockResult(block=block, skipped=True)
 
-        # Skip package-installation blocks (pip install …).
         if block.kind == CodeBlockKind.INSTALL:
             return BlockResult(block=block, skipped=True)
 
-        # Honour explicit <!-- markproof:skip --> annotation.
         if block.metadata.get("skip") == "true":
             return BlockResult(block=block, skipped=True)
 

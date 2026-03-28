@@ -4,8 +4,6 @@ from pathlib import Path
 
 import pytest
 
-# Import executor and parser at module level so Pydantic generates their schemas
-# with the real pathlib.Path — before any pyfakefs fixture patches it.
 from markproof import executor as _executor_mod  # noqa: F401
 from markproof import parser as _parser_mod  # noqa: F401
 from markproof.config import (
@@ -33,10 +31,6 @@ from markproof.generator import (
     _wrap_section,
     check_readme,
 )
-
-# ---------------------------------------------------------------------------
-# Shared fake-filesystem fixtures
-# ---------------------------------------------------------------------------
 
 _MINIMAL_PYPROJECT = """\
 [build-system]
@@ -74,11 +68,6 @@ def _make_project(fs, *, with_config: bool = False, config_content: str = "") ->
     if with_config:
         fs.create_file(root / "markproof.toml", contents=config_content)
     return root
-
-
-# ---------------------------------------------------------------------------
-# load_config
-# ---------------------------------------------------------------------------
 
 
 class TestLoadConfig:
@@ -122,11 +111,6 @@ class TestLoadConfig:
         assert cfg.readme.path == "README.md"
 
 
-# ---------------------------------------------------------------------------
-# MarkProofConfig model
-# ---------------------------------------------------------------------------
-
-
 class TestMarkProofConfig:
     def test_default_construction(self) -> None:
         cfg = MarkProofConfig()
@@ -137,11 +121,6 @@ class TestMarkProofConfig:
         assert SECTION_INSTALLATION in ALL_SECTIONS
         assert SECTION_ARCHITECTURE in ALL_SECTIONS
         assert SECTION_TECH_STACK in ALL_SECTIONS
-
-
-# ---------------------------------------------------------------------------
-# _should_ignore
-# ---------------------------------------------------------------------------
 
 
 class TestShouldIgnore:
@@ -178,11 +157,6 @@ class TestShouldIgnore:
         p = Path("/project/.python-version")
         fs.create_file(p, contents="")
         assert _should_ignore(p) is False
-
-
-# ---------------------------------------------------------------------------
-# _build_tree
-# ---------------------------------------------------------------------------
 
 
 class TestBuildTree:
@@ -239,11 +213,6 @@ class TestBuildTree:
         assert lines[0].startswith("├── ")
 
 
-# ---------------------------------------------------------------------------
-# _parse_pyproject
-# ---------------------------------------------------------------------------
-
-
 class TestParsePyproject:
     def test_returns_empty_dict_when_absent(self, fs) -> None:  # noqa: ANN001
         fs.create_dir("/project")
@@ -264,11 +233,6 @@ class TestParsePyproject:
         root = _make_project(fs)
         data = _parse_pyproject(root)
         assert "pytest>=8.0" in data["dependency-groups"]["dev"]
-
-
-# ---------------------------------------------------------------------------
-# _render_architecture
-# ---------------------------------------------------------------------------
 
 
 class TestRenderArchitecture:
@@ -307,11 +271,6 @@ class TestRenderArchitecture:
         assert "src/" in output
 
 
-# ---------------------------------------------------------------------------
-# _render_tech_stack
-# ---------------------------------------------------------------------------
-
-
 class TestRenderTechStack:
     def test_contains_heading(self, fs) -> None:  # noqa: ANN001
         root = _make_project(fs)
@@ -344,7 +303,7 @@ class TestRenderTechStack:
         fs.create_dir("/empty")
         output = _render_tech_stack(Path("/empty"))
         assert "## Tech Stack" in output
-        assert ">=3.12" in output  # default python version
+        assert ">=3.12" in output
 
     def test_table_structure(self, fs) -> None:  # noqa: ANN001
         root = _make_project(fs)
@@ -352,11 +311,6 @@ class TestRenderTechStack:
         assert "|" in output
         assert "Python" in output
         assert "Package Manager" in output
-
-
-# ---------------------------------------------------------------------------
-# _render_installation
-# ---------------------------------------------------------------------------
 
 
 class TestRenderInstallation:
@@ -389,11 +343,6 @@ class TestRenderInstallation:
         fs.create_dir("/myproject")
         output = _render_installation(Path("/myproject"))
         assert "myproject" in output
-
-
-# ---------------------------------------------------------------------------
-# _update_section / marker helpers
-# ---------------------------------------------------------------------------
 
 
 class TestMarkerHelpers:
@@ -468,15 +417,9 @@ class TestUpdateSection:
         content = _update_section(content, "bar", "## Bar\n\nbar body")
         assert "foo body" in content
         assert "bar body" in content
-        # Update only foo
         content = _update_section(content, "foo", "## Foo\n\nfoo updated")
         assert "foo updated" in content
-        assert "bar body" in content  # bar untouched
-
-
-# ---------------------------------------------------------------------------
-# ReadmeGenerator.generate
-# ---------------------------------------------------------------------------
+        assert "bar body" in content
 
 
 class TestReadmeGenerator:
@@ -523,7 +466,6 @@ class TestReadmeGenerator:
         gen = ReadmeGenerator(root=root)
         path = gen.generate()
 
-        # simulate stale content in installation section
         old = path.read_text()
         stale = _update_section(
             old, SECTION_INSTALLATION, "## Installation\n\nold stuff"
@@ -582,11 +524,6 @@ class TestReadmeGenerator:
         assert _begin_marker(SECTION_INSTALLATION) not in content
 
 
-# ---------------------------------------------------------------------------
-# check_readme
-# ---------------------------------------------------------------------------
-
-
 class TestCheckReadme:
     def test_passes_for_fully_generated_readme(self, fs) -> None:  # noqa: ANN001
         root = _make_project(fs)
@@ -612,12 +549,11 @@ class TestCheckReadme:
         fs.create_dir("/project")
         result = check_readme(Path("/project/README.md"), MarkProofConfig())
         assert result.passed is False
-        assert result.block_errors  # "File not found" error
+        assert result.block_errors
 
     def test_detects_python_block_error(self, fs) -> None:  # noqa: ANN001
         root = _make_project(fs)
         path = ReadmeGenerator(root=root).generate()
-        # Inject a broken Python block into the readme
         content = path.read_text()
         broken_block = "\n\n```python\nraise ValueError('injected error')\n```\n"
         path.write_text(content + broken_block)
@@ -636,7 +572,6 @@ class TestCheckReadme:
 
         cfg = load_config(root)
         result = check_readme(path, cfg)
-        # Installation section has bash blocks — executor skips them, no errors
         assert result.block_errors == []
 
     def test_check_result_readme_path(self, fs) -> None:  # noqa: ANN001
@@ -649,7 +584,6 @@ class TestCheckReadme:
     def test_partial_missing_sections(self, fs) -> None:  # noqa: ANN001
         root = _make_project(fs)
         readme = root / "README.md"
-        # Only install section present
         readme.write_text(
             f"{_begin_marker(SECTION_INSTALLATION)}\n"
             "## Installation\n"
@@ -660,11 +594,6 @@ class TestCheckReadme:
         assert SECTION_INSTALLATION not in result.missing_sections
         assert SECTION_ARCHITECTURE in result.missing_sections
         assert SECTION_TECH_STACK in result.missing_sections
-
-
-# ---------------------------------------------------------------------------
-# Integration: generate → check roundtrip
-# ---------------------------------------------------------------------------
 
 
 class TestGenerateCheckRoundtrip:

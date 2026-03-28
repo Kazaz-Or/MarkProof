@@ -21,9 +21,9 @@ class CodeBlock(BaseModel):
 
     source: str
     language: str
-    line_number: int  # 1-based line of the opening fence
+    line_number: int
     kind: CodeBlockKind
-    metadata: dict[str, str]  # parsed from preceding <!-- markproof:... --> comments
+    metadata: dict[str, str]
 
 
 class ParseResult(BaseModel):
@@ -40,7 +40,7 @@ class BlockResult:
     block: CodeBlock
     stdout: str = ""
     stderr: str = ""
-    error: str | None = None  # "<ExcType>: <message>" if an exception was raised
+    error: str | None = None
     skipped: bool = False
 
     @property

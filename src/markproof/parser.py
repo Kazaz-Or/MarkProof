@@ -18,17 +18,10 @@ from pathlib import Path
 
 from .models import CodeBlock, CodeBlockKind, ParseResult
 
-# ---------------------------------------------------------------------------
-# Compiled regular expressions
-# ---------------------------------------------------------------------------
-
-# Matches: <!-- markproof:key=value flag another=x -->
 _COMMENT_RE = re.compile(r"<!--\s*markproof:([^>]+?)-->", re.IGNORECASE)
 
-# Opening fence: ``` or ~~~ (3+ chars), optional language tag, nothing else.
 _FENCE_OPEN_RE = re.compile(r"^(?P<fence>`{3,}|~{3,})(?P<lang>\w*)\s*$")
 
-# Installation command patterns (first non-whitespace token on a line).
 _INSTALL_RE = re.compile(
     r"^\s*(?:"
     r"pip3?\s+install"
@@ -39,11 +32,6 @@ _INSTALL_RE = re.compile(
     r")\b",
     re.MULTILINE,
 )
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
 
 
 def _parse_comment_metadata(raw: str) -> dict[str, str]:
@@ -75,11 +63,6 @@ def _closing_fence_re(fence: str) -> re.Pattern[str]:
     return re.compile(rf"^{char}{{{len(fence)},}}\s*$")
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-
 def parse_text(text: str, path: Path) -> ParseResult:
     """Parse *text* as Markdown and return all fenced code blocks found.
 
@@ -98,31 +81,27 @@ def parse_text(text: str, path: Path) -> ParseResult:
     while i < len(lines):
         line = lines[i]
 
-        # ── HTML metadata comment ────────────────────────────────────────────
         comment_match = _COMMENT_RE.search(line)
         if comment_match:
             pending_meta.update(_parse_comment_metadata(comment_match.group(1)))
             i += 1
             continue
 
-        # ── Opening fence ────────────────────────────────────────────────────
         fence_match = _FENCE_OPEN_RE.match(line)
         if fence_match:
             fence = fence_match.group("fence")
             language = fence_match.group("lang").lower()
-            open_line = i + 1  # convert to 1-based
+            open_line = i + 1
             close_re = _closing_fence_re(fence)
             i += 1
 
             content_lines: list[str] = []
             while i < len(lines):
                 if close_re.match(lines[i]):
-                    i += 1  # consume the closing fence
+                    i += 1
                     break
                 content_lines.append(lines[i])
                 i += 1
-            # If EOF reached without closing fence, content_lines still holds
-            # everything — we treat the block as implicitly closed.
 
             source = "\n".join(content_lines)
             blocks.append(
@@ -137,7 +116,6 @@ def parse_text(text: str, path: Path) -> ParseResult:
             pending_meta = {}
             continue
 
-        # ── Any other non-blank line clears pending metadata ─────────────────
         if line.strip():
             pending_meta = {}
 

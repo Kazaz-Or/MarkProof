@@ -19,7 +19,6 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-# Section IDs understood by the generator.
 SECTION_INSTALLATION = "installation"
 SECTION_ARCHITECTURE = "architecture"
 SECTION_TECH_STACK = "tech_stack"

@@ -20,10 +20,6 @@ from markproof.models import (
 )
 from markproof.parser import parse_text
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _make_block(
     source: str,
@@ -45,11 +41,6 @@ def _parse(md: str) -> ParseResult:
     return parse_text(md, Path("test.md"))
 
 
-# ---------------------------------------------------------------------------
-# _is_async_source
-# ---------------------------------------------------------------------------
-
-
 class TestIsAsyncSource:
     def test_plain_sync_code(self) -> None:
         assert _is_async_source("x = 1\nprint(x)") is False
@@ -61,12 +52,10 @@ class TestIsAsyncSource:
         assert _is_async_source("import os\nos.getcwd()") is False
 
     def test_async_def_only_no_await(self) -> None:
-        # Defining an async function without a top-level await is fine to exec.
         source = "async def f():\n    pass\n"
         assert _is_async_source(source) is False
 
     def test_async_def_with_internal_await(self) -> None:
-        # await is inside the async def — compiles fine, no wrapper needed.
         source = "async def f():\n    await some_coro()\n"
         assert _is_async_source(source) is False
 
@@ -87,18 +76,11 @@ class TestIsAsyncSource:
         assert _is_async_source(source) is True
 
     def test_syntax_error_unrelated_to_async(self) -> None:
-        # A real syntax error (missing colon) is not an async issue.
         assert _is_async_source("def foo()\n    pass") is False
 
     def test_await_in_comment_not_detected(self) -> None:
-        # "await" in a comment still passes compile; no wrapper needed.
         source = "# await something\nx = 1\n"
         assert _is_async_source(source) is False
-
-
-# ---------------------------------------------------------------------------
-# _make_async_wrapper
-# ---------------------------------------------------------------------------
 
 
 class TestMakeAsyncWrapper:
@@ -129,11 +111,6 @@ class TestMakeAsyncWrapper:
         assert "    a = 1" in wrapper
         assert "    b = 2" in wrapper
         assert "    c = a + b" in wrapper
-
-
-# ---------------------------------------------------------------------------
-# _execute_source
-# ---------------------------------------------------------------------------
 
 
 class TestExecuteSource:
@@ -200,8 +177,6 @@ class TestExecuteSource:
         assert stdout == ""
         assert stderr == ""
         assert error is None
-
-    # Async execution
 
     def test_async_block_executes(self) -> None:
         ns: dict = {}
@@ -282,11 +257,6 @@ class TestExecuteSource:
         assert "_markproof_locals" not in ns
 
 
-# ---------------------------------------------------------------------------
-# SnippetExecutor._run_block  (via execute with single-block ParseResult)
-# ---------------------------------------------------------------------------
-
-
 class TestRunBlockSkipLogic:
     def _executor_run_one(self, block: CodeBlock) -> BlockResult:
         pr = ParseResult(path=Path("x.md"), blocks=[block])
@@ -342,11 +312,6 @@ class TestRunBlockSkipLogic:
         block = _make_block("x = 1", metadata={"skip": "false"})
         result = self._executor_run_one(block)
         assert result.skipped is False
-
-
-# ---------------------------------------------------------------------------
-# BlockResult and ExecutionResult model contracts
-# ---------------------------------------------------------------------------
 
 
 class TestBlockResult:
@@ -412,11 +377,6 @@ class TestExecutionResult:
         assert er.passed is True
 
 
-# ---------------------------------------------------------------------------
-# SnippetExecutor.execute — integration tests
-# ---------------------------------------------------------------------------
-
-
 class TestSnippetExecutorIntegration:
     def test_path_propagated_to_result(self) -> None:
         pr = _parse("")
@@ -457,21 +417,16 @@ class TestSnippetExecutorIntegration:
         executor = SnippetExecutor()
         md = "```python\nx = 99\n```\n"
         er1 = executor.execute(_parse(md))
-        # second call with a block that uses x — should fail (fresh ns)
         md2 = "```python\nprint(x)\n```\n"
         er2 = executor.execute(_parse(md2))
         assert er1.results[0].passed is True
-        assert er2.results[0].error is not None  # x is not defined in fresh ns
+        assert er2.results[0].error is not None
 
     def test_skip_annotated_block(self) -> None:
         md = "<!-- markproof:skip -->\n```python\nraise RuntimeError\n```\n"
         er = SnippetExecutor().execute(_parse(md))
         assert er.results[0].skipped is True
         assert er.passed is True
-
-    # ------------------------------------------------------------------
-    # Multi-step tutorial: cumulative state
-    # ------------------------------------------------------------------
 
     def test_multistep_tutorial_cumulative_state(self) -> None:
         md = """
@@ -509,27 +464,14 @@ print(root)
 
         er = SnippetExecutor().execute(_parse(md))
 
-        # bash INSTALL block
         assert er.results[0].skipped is True
-
-        # Step 1: define greet — no output
         assert er.results[1].passed is True
         assert er.results[1].stdout == ""
-
-        # Step 2: call greet — prints "Hello, World!"
         assert er.results[2].passed is True
         assert er.results[2].stdout == "Hello, World!\n"
-
-        # Step 3: uses message from Step 2
         assert er.results[3].passed is True
-        # len("Hello, World!") == 13, floor(sqrt(13)) == 3
         assert er.results[3].stdout == "3\n"
-
         assert er.passed is True
-
-    # ------------------------------------------------------------------
-    # Async tutorial
-    # ------------------------------------------------------------------
 
     def test_async_single_block(self) -> None:
         md = (
@@ -582,8 +524,8 @@ print(root)
             "```\n"
         )
         er = SnippetExecutor().execute(_parse(md))
-        assert er.results[0].passed is True  # defines compute + imports asyncio
-        assert er.results[1].passed is True  # awaits compute(6)
+        assert er.results[0].passed is True
+        assert er.results[1].passed is True
         assert er.results[1].stdout == "36\n"
 
     def test_full_async_tutorial(self) -> None:
@@ -624,17 +566,13 @@ print("ok")
 
         er = SnippetExecutor().execute(_parse(md))
 
-        assert er.results[0].skipped is True  # install
-        assert er.results[1].passed is True  # define utilities
-        assert er.results[2].passed is True  # async fetch
+        assert er.results[0].skipped is True
+        assert er.results[1].passed is True
+        assert er.results[2].passed is True
         assert er.results[2].stdout == "42\n"
-        assert er.results[3].passed is True  # sync assert
+        assert er.results[3].passed is True
         assert er.results[3].stdout == "ok\n"
         assert er.passed is True
-
-    # ------------------------------------------------------------------
-    # execute_file convenience function (uses pyfakefs)
-    # ------------------------------------------------------------------
 
     def test_execute_file_end_to_end(self, fs) -> None:  # noqa: ANN001
         content = "```python\nx = 6\ny = 7\n```\n```python\nprint(x * y)\n```\n"

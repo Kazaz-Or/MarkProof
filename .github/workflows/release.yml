@@ -1,17 +1,5 @@
 name: Release
 
-# Triggered when a version tag is pushed: v1.0.0, v2.3.1, etc.
-# The tag IS the version — hatch-vcs reads it at build time.
-# No manual version edits in pyproject.toml are needed.
-#
-# How to release:
-#   git tag v1.2.3
-#   git push origin v1.2.3
-#
-# Pipeline:
-#   quality  →  build  →  publish-pypi
-#                      └→  github-release   (parallel with publish-pypi)
-
 on:
   push:
     tags:
@@ -22,28 +10,43 @@ permissions:
 
 jobs:
 
-  # ── 1. Full quality suite ────────────────────────────────────────────────
-  #
-  # Identical to the CI workflow.  A release must pass every check that a
-  # regular commit passes — plus the docs self-check.
-  #
-  quality:
-    name: Quality Suite
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0          # full history so hatch-vcs can resolve the tag
+          fetch-depth: 0
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install dev dependencies
+        run: uv sync --dev
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: ruff format (check only)
+        run: uv run ruff format --check .
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -51,48 +54,77 @@ jobs:
       - name: Install project + dev dependencies
         run: uv sync --dev
 
-      - name: Lint — ruff check
-        run: uv run ruff check .
+      - name: Run unit tests
+        run: uv run pytest tests/unit/ -v
 
-      - name: Lint — ruff format (check only)
-        run: uv run ruff format --check .
+  functional-tests:
+    name: Functional Tests
+    runs-on: ubuntu-latest
 
-      - name: Test — unit suite
-        run: uv run pytest tests/unit/
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Test — functional suite
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install project + dev dependencies
+        run: uv sync --dev
+
+      - name: Run functional tests
         run: uv run pytest tests/functional/ -v
 
-      - name: Docs — regenerate README
+  docs-check:
+    name: Docs Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install project dependencies
+        run: uv sync
+
+      - name: Regenerate README
         run: uv run markproof generate .
 
-      - name: Docs — self-check README
+      - name: Validate README
         run: uv run markproof check README.md --root .
 
-      - name: Docs — check docs library
+      - name: Validate docs library
         run: |
           for doc in docs/*.md; do
             uv run markproof check "$doc" --root docs/
           done
 
-  # ── 2. Build distribution artifacts ─────────────────────────────────────
-  #
-  # hatch-vcs reads the pushed tag (e.g. v1.2.3) and bakes "1.2.3" into
-  # the wheel metadata and src/markproof/_version.py.
-  #
   build:
-    name: Build distribution
-    needs: quality
+    name: Build
+    needs: [lint, unit-tests, functional-tests, docs-check]
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0          # required for hatch-vcs tag resolution
+          fetch-depth: 0
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -102,9 +134,9 @@ jobs:
 
       - name: Verify tag matches built package version
         run: |
-          TAG="${GITHUB_REF_NAME#v}"          # strip leading "v"
+          TAG="${GITHUB_REF_NAME#v}"
           PKG=$(uv run python -c "import markproof; print(markproof.__version__)")
-          echo "Tag version : $TAG"
+          echo "Tag version    : $TAG"
           echo "Package version: $PKG"
           if [ "$TAG" != "$PKG" ]; then
             echo "ERROR: tag $TAG does not match package version $PKG"
@@ -118,20 +150,6 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-  # ── 3a. Publish to PyPI ──────────────────────────────────────────────────
-  #
-  # Uses OIDC Trusted Publishing — no API tokens or secrets required.
-  #
-  # One-time PyPI setup (per project):
-  #   1. Go to https://pypi.org/manage/account/publishing/
-  #   2. Add a new trusted publisher:
-  #        PyPI project name : markproof
-  #        GitHub owner      : <your-github-username>
-  #        Repository        : markproof
-  #        Workflow filename : release.yml
-  #        Environment       : pypi
-  #   3. Create the "pypi" environment in GitHub repo settings.
-  #
   publish-pypi:
     name: Publish to PyPI
     needs: build
@@ -140,40 +158,30 @@ jobs:
       name: pypi
       url: https://pypi.org/p/markproof
     permissions:
-      id-token: write             # required for OIDC trusted publishing
+      id-token: write
 
     steps:
-      - name: Download distribution artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
 
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@release/v1
 
-  # ── 3b. Create GitHub Release ────────────────────────────────────────────
-  #
-  # Runs in parallel with publish-pypi.
-  # Attaches the wheel and sdist to the release and auto-generates notes
-  # from the merged pull requests since the previous tag.
-  #
   github-release:
-    name: Create GitHub Release
+    name: GitHub Release
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write             # required to create a release
+      contents: write
 
     steps:
-      - name: Download distribution artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           generate_release_notes: true

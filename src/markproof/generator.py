@@ -36,10 +36,6 @@ from .config import (
 from .executor import SnippetExecutor
 from .parser import parse_text
 
-# ---------------------------------------------------------------------------
-# File-tree helpers
-# ---------------------------------------------------------------------------
-
 _IGNORE_NAMES: frozenset[str] = frozenset(
     {
         ".git",
@@ -57,7 +53,6 @@ _IGNORE_NAMES: frozenset[str] = frozenset(
         "node_modules",
         ".tox",
         ".nox",
-        # Generated files that would make the tree non-idempotent
         "README.md",
         "CHANGELOG.md",
     }
@@ -94,11 +89,6 @@ def _build_tree(root: Path, prefix: str = "") -> list[str]:
             extension = "    " if is_last else "│   "
             lines.extend(_build_tree(child, prefix + extension))
     return lines
-
-
-# ---------------------------------------------------------------------------
-# Section renderers
-# ---------------------------------------------------------------------------
 
 
 def _parse_pyproject(root: Path) -> dict:  # type: ignore[type-arg]
@@ -180,10 +170,6 @@ def _render_installation(root: Path) -> str:
     )
 
 
-# ---------------------------------------------------------------------------
-# Section marker helpers
-# ---------------------------------------------------------------------------
-
 _SECTION_RENDERERS: dict[str, Callable[[Path], str]] = {
     SECTION_INSTALLATION: _render_installation,
     SECTION_ARCHITECTURE: _render_architecture,
@@ -225,11 +211,6 @@ def _update_section(content: str, section_id: str, body: str) -> str:
 def _section_present(content: str, section_id: str) -> bool:
     """Return True if the begin-marker for *section_id* exists in *content*."""
     return _begin_marker(section_id) in content
-
-
-# ---------------------------------------------------------------------------
-# Check result
-# ---------------------------------------------------------------------------
 
 
 class CheckResult:
@@ -285,11 +266,6 @@ def check_readme(readme_path: Path, config: MarkProofConfig) -> CheckResult:
     )
 
 
-# ---------------------------------------------------------------------------
-# Primary entry point
-# ---------------------------------------------------------------------------
-
-
 class ReadmeGenerator:
     """Scans *root* and generates / updates a ``README.md``.
 
@@ -300,10 +276,6 @@ class ReadmeGenerator:
     def __init__(self, root: Path, config: MarkProofConfig | None = None) -> None:
         self.root = root
         self.config = config if config is not None else load_config(root)
-
-    # ------------------------------------------------------------------
-    # Public
-    # ------------------------------------------------------------------
 
     def generate(self, output: Path | None = None) -> Path:
         """Write (or update) the README and return its path."""
@@ -325,10 +297,6 @@ class ReadmeGenerator:
         readme_path.parent.mkdir(parents=True, exist_ok=True)
         readme_path.write_text(content, encoding="utf-8")
         return readme_path
-
-    # ------------------------------------------------------------------
-    # Internal
-    # ------------------------------------------------------------------
 
     def _scaffold_header(self) -> str:
         """Build the title + description for a brand-new README."""

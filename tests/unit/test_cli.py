@@ -16,11 +16,6 @@ def test_app_help() -> None:
     assert "generate" in result.output
 
 
-# ---------------------------------------------------------------------------
-# generate command
-# ---------------------------------------------------------------------------
-
-
 def test_generate_help() -> None:
     result = runner.invoke(app, ["generate", "--help"])
     assert result.exit_code == 0
@@ -56,11 +51,6 @@ def test_generate_custom_output(tmp_path: Path) -> None:
     result = runner.invoke(app, ["generate", str(tmp_path), "--output", str(out)])
     assert result.exit_code == 0, result.output
     assert out.exists()
-
-
-# ---------------------------------------------------------------------------
-# check command
-# ---------------------------------------------------------------------------
 
 
 def test_check_help() -> None:
