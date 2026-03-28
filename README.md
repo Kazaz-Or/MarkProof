@@ -26,6 +26,7 @@ Write once, verify continuously — documentation that lies is worse than no doc
 - [Metadata Annotations](#metadata-annotations)
 - [Configuration](#configuration)
 - [How It Works](#how-it-works)
+- [Examples](#examples)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
 - [Development](#development)
@@ -56,14 +57,23 @@ MarkProof treats your docs as tests: if the code in your README doesn't run, the
 <!-- markproof:begin:installation -->
 ## Installation
 
-**Prerequisites:** [uv](https://docs.astral.sh/uv/) installed.
+**From PyPI** (recommended):
 
 ```bash
-# Install dependencies
-uv sync
+pip install markproof
+# or with uv
+uv tool install markproof
 ```
 
-For development:
+**Add to a project** (as a dev dependency):
+
+```bash
+uv add --dev markproof
+```
+
+**For development** (clone + install from source):
+
+**Prerequisites:** [uv](https://docs.astral.sh/uv/) installed.
 
 ```bash
 uv sync --dev
@@ -83,7 +93,22 @@ markproof generate .
 markproof check README.md --root .
 ```
 
-Add a check step to CI and documentation accuracy becomes a build requirement:
+Add a check step to CI and documentation accuracy becomes a build requirement.
+
+**With the GitHub Action** (simplest):
+
+```yaml
+- uses: actions/checkout@v4
+
+- name: Validate README
+  uses: Kazaz-Or/MarkProof@v1
+  with:
+    path: README.md
+    root: '.'
+    generate: 'true'   # regenerate managed sections before checking
+```
+
+**Or directly with uv**:
 
 ```yaml
 - name: Regenerate README
@@ -242,14 +267,23 @@ aborts the run; all remaining blocks are attempted.
 <!-- markproof:begin:installation -->
 ## Installation
 
-**Prerequisites:** [uv](https://docs.astral.sh/uv/) installed.
+**From PyPI** (recommended):
 
 ```bash
-# Install dependencies
-uv sync
+pip install markproof
+# or with uv
+uv tool install markproof
 ```
 
-For development:
+**Add to a project** (as a dev dependency):
+
+```bash
+uv add --dev markproof
+```
+
+**For development** (clone + install from source):
+
+**Prerequisites:** [uv](https://docs.astral.sh/uv/) installed.
 
 ```bash
 uv sync --dev
@@ -260,6 +294,26 @@ uv run markproof --help
 
 `generate` uses a `re.DOTALL` substitution to replace only the content between
 the markers, leaving all prose outside them untouched.
+
+---
+
+## Examples
+
+The [`examples/`](examples/) directory contains self-contained projects that
+demonstrate MarkProof's features. Each has its own `markproof.toml` with
+`managed = []` so you can run checks without needing a full project scaffold.
+
+| Example | What it covers |
+|---------|---------------|
+| [`getting_started/`](examples/getting_started/) | Basic execution, `expect_stdout`, `expect_error`, `skip`, cumulative state |
+| [`data_pipeline/`](examples/data_pipeline/) | CSV parsing pipeline with stdout assertions across multiple blocks |
+| [`async_api_client/`](examples/async_api_client/) | Top-level `await`, simulated network calls, error surface documentation |
+
+Run any example:
+
+```bash
+markproof check examples/getting_started/README.md --root examples/getting_started
+```
 
 ---
 
@@ -278,6 +332,7 @@ MarkProof/
 ├── src/
 │   └── markproof/
 │       ├── __init__.py
+│       ├── _version.py
 │       ├── cli.py
 │       ├── config.py
 │       ├── executor.py
@@ -357,8 +412,8 @@ MarkProof/
 ### Setup
 
 ```bash
-git clone https://github.com/you/markproof.git
-cd markproof
+git clone https://github.com/Kazaz-Or/MarkProof.git
+cd MarkProof
 make dev
 ```
 

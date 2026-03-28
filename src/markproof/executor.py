@@ -164,6 +164,22 @@ class SnippetExecutor:
             return BlockResult(block=block, skipped=True)
 
         stdout, stderr, error = _execute_source(block.source, namespace)
+
+        expected_error = block.metadata.get("expect_error")
+        if expected_error:
+            if error is None:
+                error = f"Expected {expected_error} but no exception was raised"
+            elif error.split(":")[0].strip().startswith(expected_error):
+                error = None  # expected error type matched — treat as success
+            else:
+                error = f"Expected {expected_error} but got {error}"
+
+        expected_stdout = block.metadata.get("expect_stdout")
+        if expected_stdout is not None and error is None:
+            actual = stdout.strip()
+            if actual != expected_stdout:
+                error = f"Expected stdout {expected_stdout!r} but got {actual!r}"
+
         return BlockResult(
             block=block,
             stdout=stdout,

@@ -33,6 +33,26 @@ jobs:
       - name: ruff format (check only)
         run: uv run ruff format --check .
 
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install dev dependencies
+        run: uv sync --dev
+
+      - name: ty check
+        run: uv run ty check src/
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -116,7 +136,7 @@ jobs:
 
   build:
     name: Build
-    needs: [lint, unit-tests, functional-tests, docs-check]
+    needs: [lint, type-check, unit-tests, functional-tests, docs-check]
     runs-on: ubuntu-latest
 
     steps:

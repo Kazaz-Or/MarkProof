@@ -22,19 +22,16 @@ dev = [
     "pytest>=8.0",
     "pyfakefs>=5.0",
     "ruff>=0.4",
+    "ty>=0.0.26",
 ]
 
-# ── Version: derived from the nearest git tag (e.g. v1.2.3 → 1.2.3) ─────────
 [tool.hatch.version]
 source = "vcs"
 fallback-version = "0.0.0"
 
 [tool.hatch.build.hooks.vcs]
-# Writes src/markproof/_version.py at build / editable-install time.
-# This file is git-ignored; the installed wheel carries the baked version.
 version-file = "src/markproof/_version.py"
 
-# ── Ruff ─────────────────────────────────────────────────────────────────────
 [tool.ruff]
 target-version = "py312"
 line-length = 88
@@ -42,6 +39,5 @@ line-length = 88
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 
-# ── Pytest ────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/functional"]

@@ -145,22 +145,32 @@ def _render_tech_stack(root: Path) -> str:
 
 
 def _render_installation(root: Path) -> str:
-    """Render ``uv sync`` instructions under ``## Installation``."""
+    """Render installation instructions under ``## Installation``."""
     data = _parse_pyproject(root)
-    project_name = data.get("project", {}).get("name", root.name or "project")
+    project = data.get("project", {})
+    project_name = project.get("name", root.name or "project")
 
     return "\n".join(
         [
             "## Installation",
             "",
-            "**Prerequisites:** [uv](https://docs.astral.sh/uv/) installed.",
+            "**From PyPI** (recommended):",
             "",
             "```bash",
-            "# Install dependencies",
-            "uv sync",
+            f"pip install {project_name}",
+            "# or with uv",
+            f"uv tool install {project_name}",
             "```",
             "",
-            "For development:",
+            "**Add to a project** (as a dev dependency):",
+            "",
+            "```bash",
+            f"uv add --dev {project_name}",
+            "```",
+            "",
+            "**For development** (clone + install from source):",
+            "",
+            "**Prerequisites:** [uv](https://docs.astral.sh/uv/) installed.",
             "",
             "```bash",
             "uv sync --dev",

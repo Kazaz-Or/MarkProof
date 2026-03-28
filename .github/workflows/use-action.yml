@@ -1,0 +1,26 @@
+name: Docs via Action
+
+# Demonstrates using the published MarkProof GitHub Action to validate docs.
+# This workflow is separate from the main CI workflow (markproof.yml) which
+# uses `uv run markproof` directly.
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  docs:
+    name: Validate Docs (via Action)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate README with MarkProof Action
+        uses: Kazaz-Or/MarkProof@master
+        with:
+          path: README.md
+          root: '.'
+          generate: 'true'

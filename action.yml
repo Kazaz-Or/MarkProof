@@ -1,0 +1,53 @@
+name: 'MarkProof'
+description: 'Validate that documentation code blocks actually run — fail CI when your README lies.'
+author: 'Kazaz-Or'
+
+branding:
+  icon: 'check-circle'
+  color: 'green'
+
+inputs:
+  path:
+    description: 'Path to the Markdown file to validate (relative to the repo root).'
+    required: false
+    default: 'README.md'
+  root:
+    description: 'Project root directory used for config lookup (markproof.toml).'
+    required: false
+    default: '.'
+  generate:
+    description: >
+      Regenerate managed sections (architecture, tech_stack, installation) before
+      checking. Set to "false" to skip regeneration and only validate the existing
+      file.
+    required: false
+    default: 'true'
+  version:
+    description: >
+      MarkProof version to install (e.g. "1.2.3"). Defaults to the latest release.
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Install MarkProof
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.version }}" ]; then
+          uv tool install "markproof==${{ inputs.version }}"
+        else
+          uv tool install markproof
+        fi
+
+    - name: Regenerate managed sections
+      if: inputs.generate == 'true'
+      shell: bash
+      run: uvx markproof generate "${{ inputs.root }}"
+
+    - name: Validate documentation
+      shell: bash
+      run: uvx markproof check "${{ inputs.path }}" --root "${{ inputs.root }}"

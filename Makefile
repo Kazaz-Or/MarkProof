@@ -1,5 +1,5 @@
 .PHONY: help install dev test test-unit test-functional \
-        lint format fix check generate docs-check ci clean
+        lint type-check format fix check generate docs-check ci clean
 
 BOLD  := \033[1m
 RESET := \033[0m
@@ -30,6 +30,9 @@ test-functional:                                     ## Run functional tests onl
 test-cov:                                            ## Run tests with coverage report
 	$(PYTHON) pytest --cov=src/markproof --cov-report=term-missing
 
+type-check:                                          ## Run ty type checker
+	$(PYTHON) ty check src/
+
 lint:                                                ## Check code with ruff (no changes)
 	$(PYTHON) ruff check .
 
@@ -40,7 +43,7 @@ fix:                                                 ## Apply ruff lint fixes an
 	$(PYTHON) ruff check --fix .
 	$(PYTHON) ruff format .
 
-check: lint format                                   ## Run lint + format checks (CI-safe, no writes)
+check: lint type-check format                        ## Run lint + type-check + format checks (CI-safe, no writes)
 
 generate:                                            ## Regenerate README from source tree
 	$(PYTHON) markproof generate .
@@ -52,8 +55,9 @@ docs-check:                                          ## Validate README and docs
 	  $(PYTHON) markproof check "$$doc" --root docs/; \
 	done
 
-ci:                                                  ## Full CI pipeline: fix → test → generate → docs-check
+ci:                                                  ## Full CI pipeline: fix → type-check → test → generate → docs-check
 	$(MAKE) fix
+	$(MAKE) type-check
 	$(MAKE) test
 	$(MAKE) generate
 	$(MAKE) docs-check
